@@ -6,9 +6,8 @@
 #   Bauhaus-Universität Weimar
 #   Finger-Institut für Baustoffkunde
 #
-# programmed using python 3.7, gnuplot 5.2,
+# programmed using python 3.7,
 # Fiji/ImageJ 1.52k
-# don't forget to install PIL (pip install Pillow)
 #
 #########################################################
 
@@ -23,7 +22,6 @@ import mmap
 import shutil
 import xml.etree.ElementTree as ET
 import statistics
-from PIL import Image
 from tkinter import filedialog
 from subprocess import check_output
 
@@ -155,7 +153,7 @@ def readProjectData( directory ):
                 for layers in layerGroup:
                     if ( layers.tag == '{' + XMLnamespace + '}Layers' ):
                         for element in layers:
-                            print( str(element.tag) )
+                            #print( str(element.tag) )
                             for layer in element:
                                 if ( layer.tag == '{' + XMLnamespace + '}displayName' ):
                                     #print( ' - displayName : ' + str(layer.text) )
@@ -172,9 +170,9 @@ def readProjectData( directory ):
                 print( ' found stitched layer!' )
                 layerTree = ET.ElementTree(file=directory + "\\" + layerFolders[i] + '\\' + '0\data\pyramid.xml')
                 layerRoot = layerTree.getroot()
+                isNavCam = True
                 for element in layerRoot:
                     #print( '  -' + element.tag )
-                    isNavCam = True
                     if ( element.tag == 'imageset' ):
                         #print( '  ' + element.attrib['url'] )
                         layerNumber = element.attrib['levels']
@@ -197,11 +195,12 @@ def readProjectData( directory ):
                                 combineImages( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
                             else:
                                 if ( showDebuggingOutput ) : print( "...doing nothing!" )
-                    if ( isNavCam ):
-                        if ( runImageJ_Script and imageJInPATH() ):
-                            combineImages( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, 1, 1, gridWidth, gridHeight, layerNumber )
-                        else:
-                            if ( showDebuggingOutput ) : print( "...doing nothing!" )
+                if ( isNavCam ):
+                    if ( runImageJ_Script and imageJInPATH() ):
+                        print( "  probably a NavCam Image!" )
+                        combineImages( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, 1, 1, gridWidth, gridHeight, layerNumber )
+                    else:
+                        if ( showDebuggingOutput ) : print( "...doing nothing!" )
             else:
                 print( ' found unstitched Tile Set' )
                 if ( showDebuggingOutput ) : print( ' no algorithm implemented yet, aborting...')

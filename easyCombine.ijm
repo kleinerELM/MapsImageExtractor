@@ -7,7 +7,6 @@
 macro "REMPorenanalyse" {
 	// check if an external argument is given or define the options
 	arg = getArgument();
-	
 	if ( arg == "" ) {
 		print("This script expects arguments! none given!")
 	} else {
@@ -36,8 +35,18 @@ macro "REMPorenanalyse" {
 		print( "Image size: " + width + "x" + height + " px" );
 		print( "Grid size: " + gridWidth + "x" + gridHeight );
 		print( "" );
-		print( "Creating Image '" + title + "' ..." );
-		newImage( "title", "8-bit black", width, height, 1 );
+		
+		filePath = dir + "l_" + layerNumber + "/c_0/tile_0.tif";;
+		open(filePath);
+		bitDep = "8-bit";
+		if ( bitDepth() == 16 ) {
+			bitDep = "16-bit";
+		} else if ( bitDepth() == 24 ) {
+			bitDep = "RGB";
+		}
+		close();
+		print( "Creating Image '" + title + "' (" + bitDep + ") ..." );
+		newImage( "title", bitDep + " black", width, height, 1 );
 		mainImageId = getImageID();
 
 		print( "Set scale 1 px = '" + scaleX + " nm" );
