@@ -1,7 +1,7 @@
 // Macro for ImageJ 1.52d for Windows
 // written by Florian Kleiner 2019
 // run from command line as follows
-// ImageJ-win64.exe -macro "C:\path\to\easyCombine.ijm" "D:\path\to\layer\|D:\path\to\output\|scaleX|scaleY|width|height|gridWidth|gridHeight|title|layerNumber"
+// ImageJ-win64.exe -macro "C:\path\to\easyCombine.ijm" "D:\path\to\layer\|D:\path\to\output\|scaleX|scaleY|width|height|gridWidth|gridHeight|title|layerNumber|scaleFactor"
 
 
 macro "REMPorenanalyse" {
@@ -21,6 +21,7 @@ macro "REMPorenanalyse" {
 		gridHeight		= arg_split[7];
 		title			= arg_split[8];
 		layerNumber		= parseInt(arg_split[9])-1;
+		scaleFactor		= arg_split[10];
 		
 		folderNamePattern = "l_" + layerNumber + "/c_{c}/";
 		fileNamePattern = "tile_{r}.tif";
@@ -34,6 +35,7 @@ macro "REMPorenanalyse" {
 		print( "Parent directory: " + File.getParent(dir) );
 		print( "Image size: " + width + "x" + height + " px" );
 		print( "Grid size: " + gridWidth + "x" + gridHeight );
+		print( "Scale factor: " + scaleFactor + "x" );
 		print( "" );
 		
 		filePath = dir + "l_" + layerNumber + "/c_0/tile_0.tif";;
@@ -46,7 +48,7 @@ macro "REMPorenanalyse" {
 		}
 		close();
 		print( "Creating Image '" + title + "' (" + bitDep + ") ..." );
-		newImage( "title", bitDep + " black", width, height, 1 );
+		newImage( "title", bitDep + " black", width*scaleFactor, height*scaleFactor, 1 );
 		mainImageId = getImageID();
 
 		print( "Set scale 1 px = '" + scaleX + " nm" );
@@ -69,13 +71,17 @@ macro "REMPorenanalyse" {
 					open(filePath);
 					imageId = getImageID();
 					
+					width	= getWidth();
+					height	= getHeight();
+					if ( scaleFactor != 1 ) {
+						run("Scale...", "x=" + scaleFactor + " y=" + scaleFactor + " interpolation=Bilinear average create");
+					}
+					
 					run("Select All");
 					run("Copy");
 					
-					width	= getWidth();
-					height	= getHeight();
 					selectImage( mainImageId );
-					makeRectangle(i*width, j*height, width, height);
+					makeRectangle(i*width*scaleFactor, j*height*scaleFactor, width*scaleFactor, height*scaleFactor);
 					run("Paste");
 					
 					//////////////////////

@@ -91,7 +91,18 @@ def processArguments():
     print( '' )
 
 def combineImages( directory, outputDirectory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber ):
-    command = "ImageJ-win64.exe -macro \"" + home_dir +"\easyCombine.ijm\" \"" + directory + "/|" + outputDirectory + "/|" + str( scaleX ) + "|" + str( scaleY ) + "|" + str( width ) + "|" + str( height ) + "|" + str(gridWidth) + "|" + str(gridHeight) + "|" + title + "|" + str(layerNumber) + "\""
+    imageSize = int(width) * int(height)
+    if ( imageSize < 2000000000 ):
+        scaleFactor = 1
+    else:
+        humanReadableImageSize = round( imageSize / 1000000000, 2)
+        print( "  image is exeeding 2 Gigapixel (" + str( humanReadableImageSize ) + " GP) and therefore too large for ImageJ" )
+        scaleFactor = 0.5
+        humanReadableImageSize = round( imageSize*scaleFactor*scaleFactor / 1000000000, 2)
+        print( "  scaling with factor " + str( scaleFactor ) + " to " + str( humanReadableImageSize ) + " GP) and therefore too large for ImageJ" )
+        
+    command = "ImageJ-win64.exe -macro \"" + home_dir +"\easyCombine.ijm\" \"" + directory + "/|" + outputDirectory + "/|" + str( scaleX ) + "|" + str( scaleY ) + "|" + str( width ) + "|" + str( height ) + "|" + str(gridWidth) + "|" + str(gridHeight) + "|" + title + "|" + str(layerNumber)+ "|" + str(scaleFactor) + "\""
+
     print( "  starting ImageJ Macro..." )
     if ( showDebuggingOutput ) : print( '  ' + command )
     try:
@@ -99,6 +110,7 @@ def combineImages( directory, outputDirectory, title, width, height, scaleX, sca
     except subprocess.CalledProcessError as e:
         print( "  Error" )#"returned error (code {}): {}".format(e.returncode, e.output))
         pass
+
 
 def cmdExists(cmd):
     return shutil.which(cmd) is not None
