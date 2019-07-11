@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 #########################################################
 # Automated Alignment and data preparation for FIB/SEM 
 # image stacks
@@ -59,18 +61,20 @@ metricScale = 0
 pixelScale  = 0
 startFrame = 0
 endFrame = 0
+forcedScaleFactor = 1
 
 def processArguments():
     argv = sys.argv[1:]
     usage = sys.argv[0] + " [-h] [-i] [-c] [-d]"
     try:
-        opts, args = getopt.getopt(argv,"himc:t:d",["noImageJ="])
+        opts, args = getopt.getopt(argv,"himfcd",["noImageJ="])
         for opt, arg in opts:
             if opt == '-h':
                 print( 'usage: ' + usage )
                 print( '-h,                  : show this help' )
                 print( '-i, --noImageJ       : skip ImageJ processing' )
                 print( '-c                   : disable curtaining removal' )
+                print( '-f                   : set a scale factor of the resulting images' )
                 print( '-d                   : show debug output' )
                 print( '' )
                 sys.exit()
@@ -86,21 +90,31 @@ def processArguments():
                 print( 'show debugging output' )
                 global showDebuggingOutput
                 showDebuggingOutput = True
+            elif opt in ("-f"):
+                if ( int( arg ) <= 1 and int( arg ) > 0 ):
+                    global forcedScaleFactor
+                    forcedScaleFactor = double( arg )
+                    print( 'set scale factor to ' + str( forcedScaleFactor ) )
+                showDebuggingOutput = True
     except getopt.GetoptError:
         print( usage )
     print( '' )
 
 def combineImages( directory, outputDirectory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber ):
-    imageSize = int(width) * int(height)
+    imageSize = int(width) * int(height) * forcedScaleFactor * forcedScaleFactor
     if ( imageSize < 2000000000 ):
-        scaleFactor = 1
+        scaleFactor = forcedScaleFactor
     else:
         humanReadableImageSize = round( imageSize / 1000000000, 2)
         print( "  image is exeeding 2 Gigapixel (" + str( humanReadableImageSize ) + " GP) and therefore too large for ImageJ" )
-        scaleFactor = 0.5
+        scaleFactor = 0.5*forcedScaleFactor
         humanReadableImageSize = round( imageSize*scaleFactor*scaleFactor / 1000000000, 2)
-        print( "  scaling with factor " + str( scaleFactor ) + " to " + str( humanReadableImageSize ) + " GP) and therefore too large for ImageJ" )
-        
+        scaleX_old = scaleX
+        scaleX = scaleX/scaleFactor
+        scaleY = scaleY/scaleFactor
+        print( "    - scaling with factor " + str( scaleFactor ) + " to " + str( humanReadableImageSize ) + " GP)" )
+        print( "    - changed scale from " + str( scaleX_old ) + " to " + str( scaleX ) + " nm per Pixel!" )
+    
     command = "ImageJ-win64.exe -macro \"" + home_dir +"\easyCombine.ijm\" \"" + directory + "/|" + outputDirectory + "/|" + str( scaleX ) + "|" + str( scaleY ) + "|" + str( width ) + "|" + str( height ) + "|" + str(gridWidth) + "|" + str(gridHeight) + "|" + title + "|" + str(layerNumber)+ "|" + str(scaleFactor) + "\""
 
     print( "  starting ImageJ Macro..." )
@@ -210,7 +224,10 @@ def readProjectData( directory ):
                 if ( isNavCam ):
                     if ( runImageJ_Script and imageJInPATH() ):
                         print( "  probably a NavCam Image!" )
-                        combineImages( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, 1, 1, gridWidth, gridHeight, layerNumber )
+                        #estimated scale: 2 cm for 468 px
+                        scaleX = scaleY = 42735 # 20 000 000 nm / 468 px
+                        print('  Estimated scale as: ' + str(scaleX) + " nm per pixel" )
+                        combineImages( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
                     else:
                         if ( showDebuggingOutput ) : print( "...doing nothing!" )
             else:
