@@ -4,7 +4,7 @@
 # Automated Alignment and data preparation for FIB/SEM 
 # image stacks
 #
-# © 2019 Florian Kleiner
+# © 2020 Florian Kleiner
 #   Bauhaus-Universität Weimar
 #   Finger-Institut für Baustoffkunde
 #
@@ -27,41 +27,21 @@ import statistics
 from tkinter import filedialog
 from subprocess import check_output
 
-print("#########################################################")
-print("# Automatic stitching of Images from a Maps Project     #")
-print("#                                                       #")
-print("# © 2019 Florian Kleiner                                #")
-print("#   Bauhaus-Universität Weimar                          #")
-print("#   Finger-Institut für Baustoffkunde                   #")
-print("#                                                       #")
-print("#########################################################")
-print()
-
-#### directory definitions
-#outputDir_Pores = "/pores/"
 home_dir = os.path.dirname(os.path.realpath(__file__))
+# import image_recombination script
+sys.path.insert(1, os.path.dirname( home_dir ) + '/image_recombination/')
+import image_recombination as ir
 
-#### global var definitions
-root = tk.Tk()
-root.withdraw()
-
-voxelSizeX = 0
-voxelSizeY = 0
-resX = 0
-resY = 0
-
-runImageJ_Script = True #False
-removeCurtaining = 1
-createLogVideos = "n"
-showDebuggingOutput = False
-outputType = 0 # standard output type (y-axis value) is area-%
-thresholdLimit = 140
-infoBarHeight = 0
-metricScale = 0
-pixelScale  = 0
-startFrame = 0
-endFrame = 0
-forcedScaleFactor = 1
+def programInfo():
+    print("#########################################################")
+    print("# Automatic stitching of Images from a Maps Project     #")
+    print("#                                                       #")
+    print("# © 2019 Florian Kleiner                                #")
+    print("#   Bauhaus-Universität Weimar                          #")
+    print("#   Finger-Institut für Baustoffkunde                   #")
+    print("#                                                       #")
+    print("#########################################################")
+    print()
 
 def processArguments():
     argv = sys.argv[1:]
@@ -93,20 +73,20 @@ def processArguments():
             elif opt in ("-f"):
                 if ( int( arg ) <= 1 and int( arg ) > 0 ):
                     global forcedScaleFactor
-                    forcedScaleFactor = double( arg )
+                    forcedScaleFactor = float( arg )
                     print( 'set scale factor to ' + str( forcedScaleFactor ) )
                 showDebuggingOutput = True
     except getopt.GetoptError:
         print( usage )
     print( '' )
 
-def combineImages( directory, outputDirectory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber ):
+def combineImagesImageJ( directory, outputDirectory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber ):
     imageSize = int(width) * int(height) * forcedScaleFactor * forcedScaleFactor
     if ( imageSize < 2000000000 ):
         scaleFactor = forcedScaleFactor
     else:
         humanReadableImageSize = round( imageSize / 1000000000, 2)
-        print( "  image is exeeding 2 Gigapixel (" + str( humanReadableImageSize ) + " GP) and therefore too large for ImageJ" )
+        print( "  image is exceeding 2 Gigapixel (" + str( humanReadableImageSize ) + " GP) and therefore too large for ImageJ" )
         scaleFactor = 0.5*forcedScaleFactor
         humanReadableImageSize = round( imageSize*scaleFactor*scaleFactor / 1000000000, 2)
         scaleX_old = scaleX
@@ -125,6 +105,56 @@ def combineImages( directory, outputDirectory, title, width, height, scaleX, sca
         print( "  Error" )#"returned error (code {}): {}".format(e.returncode, e.output))
         pass
 
+def getFileList( directory, gridWidth, gridHeight, layerNumber ):
+    allowed_file_extensions = [ '.tif', '.png' ]
+    tile_count = 0
+    workingDirectory = directory + '/0/data/'
+    if os.path.isdir( workingDirectory ) :
+        fileNameList = []
+        for i in range( gridWidth ):
+            path = workingDirectory + "l_" + str( int(layerNumber)-1 ) + "/c_" + str( i ) + "/"
+            for j in range( gridHeight ):
+                filePath = path + "tile_" + str( j ) +".tif"
+                if ( os.path.isfile( filePath ) ):
+                    fileNameList.append( filePath )
+                else:
+                    print( "  ERROR: expected file is missing: '" + filePath + "'"  )
+    else:
+        print( "  Error: '" + workingDirectory + "' is no directory")
+
+    return fileNameList
+
+def combineImagesPython( directory, outputDirectory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber ):
+    imageSize = int(width) * int(height) * forcedScaleFactor * forcedScaleFactor
+    if ( imageSize < 2000000000 ):
+        scaleFactor = forcedScaleFactor
+    else:
+        humanReadableImageSize = round( imageSize / 1000000000, 2)
+        print( "  image is exceeding 2 Gigapixel (" + str( humanReadableImageSize ) + " GP) and therefore too large for ImageJ" )
+        scaleFactor = 0.5*forcedScaleFactor
+        humanReadableImageSize = round( imageSize*scaleFactor*scaleFactor / 1000000000, 2)
+        scaleX_old = scaleX
+        scaleX = scaleX/scaleFactor
+        scaleY = scaleY/scaleFactor
+        print( "    - scaling with factor " + str( scaleFactor ) + " to " + str( humanReadableImageSize ) + " GP)" )
+        print( "    - changed scale from " + str( scaleX_old ) + " to " + str( scaleX ) + " nm per Pixel!" )
+    
+    ir_settings = ir.getBaseSettings()
+    ir_settings["workingDirectory"] = directory #+ "/LayersData/Layer/"
+    ir_settings["outputDirectory"] = outputDirectory #+ "/LayersData/Layer/"
+    ir_settings["fileType"] = ".tif"
+    ir_settings["col_count"] = gridWidth
+    ir_settings["row_count"] = gridHeight
+    ir_settings["scaleX"] = scaleX
+    ir_settings["scaleY"] = scaleY
+    ir_settings["scaleUnit"] = 'nm'
+    ir_settings["scaleFactor"] = scaleFactor
+    ir_settings["tile_count"] = ( gridWidth * gridHeight )
+    ir_settings["imageDirection"] = 'v' # vertical direction
+    ir_settings["createThumbnail"] = True
+    ir_settings["showDebuggingOutput"] = True
+    fileNameList = getFileList( directory, gridWidth, gridHeight, layerNumber )
+    ir.stitchImages( ir_settings, fileNameList )
 
 def cmdExists(cmd):
     return shutil.which(cmd) is not None
@@ -217,17 +247,19 @@ def readProjectData( directory ):
                                 if ( subsubelement.tag == 'y' ):
                                     scaleY = float( subsubelement.text )*1000000000
                             print('  Scale : ' + str(scaleX) + " nm per pixel" )
-                            if ( runImageJ_Script and imageJInPATH() ):
-                                combineImages( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
-                            else:
-                                if ( showDebuggingOutput ) : print( "...doing nothing!" )
+                            combineImagesPython( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
+                            #if ( runImageJ_Script and imageJInPATH() ):
+                            #    combineImagesImageJ( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
+                            #else:
+                            #    if ( showDebuggingOutput ) : print( "...doing nothing!" )
                 if ( isNavCam ):
                     if ( runImageJ_Script and imageJInPATH() ):
                         print( "  probably a NavCam Image!" )
                         #estimated scale: 2 cm for 468 px
                         scaleX = scaleY = 42735 # 20 000 000 nm / 468 px
                         print('  Estimated scale as: ' + str(scaleX) + " nm per pixel" )
-                        combineImages( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
+                        #combineImagesImageJ( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
+                        combineImagesPython( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
                     else:
                         if ( showDebuggingOutput ) : print( "...doing nothing!" )
             else:
@@ -238,18 +270,44 @@ def readProjectData( directory ):
     else:
         print( 'kein Projekt gefunden!' )
 
-processArguments()
-if ( showDebuggingOutput ) : print( "I am living in '" + home_dir + "'" )
+### actual program start
+if __name__ == '__main__':
+    #### global var definitions
+    root = tk.Tk()
+    root.withdraw()
 
-workingDirectory = filedialog.askdirectory(title='Please select the image / working directory')
+    voxelSizeX = 0
+    voxelSizeY = 0
+    resX = 0
+    resY = 0
 
-if ( workingDirectory != "" ) :
-    print( "Selected working directory: " + workingDirectory )
-    readProjectData( workingDirectory )
-    
-else:
-    print("No directory selected")
+    runImageJ_Script = True #False
+    removeCurtaining = 1
+    createLogVideos = "n"
+    showDebuggingOutput = False
+    outputType = 0 # standard output type (y-axis value) is area-%
+    thresholdLimit = 140
+    infoBarHeight = 0
+    metricScale = 0
+    pixelScale  = 0
+    startFrame = 0
+    endFrame = 0
+    forcedScaleFactor = 1
+
+    ### global settings    
+    programInfo()
+    processArguments()
+    if ( showDebuggingOutput ) : print( "I am living in '" + home_dir + "'" )
+
+    workingDirectory = filedialog.askdirectory(title='Please select the image / working directory')
+
+    if ( workingDirectory != "" ) :
+        print( "Selected working directory: " + workingDirectory )
+        readProjectData( workingDirectory )
+        
+    else:
+        print("No directory selected")
 
 
-print("-------")
-print("DONE!")
+    print("-------")
+    print("DONE!")
