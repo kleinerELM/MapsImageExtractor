@@ -27,10 +27,19 @@ import statistics
 from tkinter import filedialog
 from subprocess import check_output
 
+# check for dependencies
 home_dir = os.path.dirname(os.path.realpath(__file__))
 # import image_recombination script
-sys.path.insert(1, os.path.dirname( home_dir ) + '/image_recombination/')
-import image_recombination as ir
+ir_path = os.path.dirname( home_dir ) + '/image_recombination/'
+ir_file = 'image_recombination'
+if ( os.path.isfile( ir_path + ir_file + '.py' ) or os.path.isfile( home_dir + ir_file + '.py' ) ):
+    if ( os.path.isdir( ir_path ) ): sys.path.insert( 1, ir_path )
+    import image_recombination as ir
+else:
+    programInfo()
+    print( 'missing ' + ir_path + 'image_recombination.py!' )
+    print( 'download from https://github.com/kleinerELM/image_recobination' )
+    sys.exit()
 
 def programInfo():
     print("#########################################################")
@@ -80,7 +89,7 @@ def processArguments():
         print( usage )
     print( '' )
 
-def combineImagesImageJ( directory, outputDirectory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber ):
+""" def combineImagesImageJ( directory, outputDirectory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber ):
     imageSize = int(width) * int(height) * forcedScaleFactor * forcedScaleFactor
     if ( imageSize < 2000000000 ):
         scaleFactor = forcedScaleFactor
@@ -103,14 +112,14 @@ def combineImagesImageJ( directory, outputDirectory, title, width, height, scale
         subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
         print( "  Error" )#"returned error (code {}): {}".format(e.returncode, e.output))
-        pass
+        pass """
 
-def getFileList( directory, gridWidth, gridHeight, layerNumber ):
+def getFileList( directory, HDView_dir, gridWidth, gridHeight, layerNumber ):
     allowed_file_extensions = [ '.tif', '.png' ]
     tile_count = 0
-    workingDirectory = directory + '/0/data/'
+    workingDirectory = directory + '/' + HDView_dir + '/data/'
+    fileNameList = []
     if os.path.isdir( workingDirectory ) :
-        fileNameList = []
         for i in range( gridWidth ):
             path = workingDirectory + "l_" + str( int(layerNumber)-1 ) + "/c_" + str( i ) + "/"
             for j in range( gridHeight ):
@@ -124,7 +133,7 @@ def getFileList( directory, gridWidth, gridHeight, layerNumber ):
 
     return fileNameList
 
-def combineImagesPython( directory, outputDirectory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber ):
+def combineImagesPython( directory, outputDirectory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber ):
     imageSize = int(width) * int(height) * forcedScaleFactor * forcedScaleFactor
     if ( imageSize < 2000000000 ):
         scaleFactor = forcedScaleFactor
@@ -153,7 +162,7 @@ def combineImagesPython( directory, outputDirectory, title, width, height, scale
     ir_settings["imageDirection"] = 'v' # vertical direction
     ir_settings["createThumbnail"] = True
     ir_settings["showDebuggingOutput"] = True
-    fileNameList = getFileList( directory, gridWidth, gridHeight, layerNumber )
+    fileNameList = getFileList( directory, HDView_dir, gridWidth, gridHeight, layerNumber )
     ir.stitchImages( ir_settings, fileNameList )
 
 def cmdExists(cmd):
@@ -222,9 +231,17 @@ def readProjectData( directory ):
         while i < len(layerNames):
             print( 'opening layer "' + str(layerNames[i]) + '"' )
             title = str(layerNames[i])
-            if os.path.isfile(directory + "\\" + layerFolders[i] + '\\' + '0\data\pyramid.xml'):
+            
+            HDView_dir = '0' # directory in which the HDView files (pyramid.xml and tile images) are stored.
+            layer_dir = directory + '/'  + layerFolders[i] + '/' 
+            for subdir in os.listdir( layer_dir ):
+                if ( os.path.isdir( layer_dir + subdir ) ):
+                    HDView_dir = subdir
+
+            pyramid_path = layer_dir + HDView_dir + '/data/pyramid.xml'
+            if os.path.isfile( pyramid_path ):
                 print( ' found stitched layer!' )
-                layerTree = ET.ElementTree(file=directory + "\\" + layerFolders[i] + '\\' + '0\data\pyramid.xml')
+                layerTree = ET.ElementTree(file=pyramid_path)
                 layerRoot = layerTree.getroot()
                 isNavCam = True
                 for element in layerRoot:
@@ -247,7 +264,7 @@ def readProjectData( directory ):
                                 if ( subsubelement.tag == 'y' ):
                                     scaleY = float( subsubelement.text )*1000000000
                             print('  Scale : ' + str(scaleX) + " nm per pixel" )
-                            combineImagesPython( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
+                            combineImagesPython( directory + "/" + layerFolders[i].replace('\\', '/'), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
                             #if ( runImageJ_Script and imageJInPATH() ):
                             #    combineImagesImageJ( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
                             #else:
@@ -259,11 +276,12 @@ def readProjectData( directory ):
                         scaleX = scaleY = 42735 # 20 000 000 nm / 468 px
                         print('  Estimated scale as: ' + str(scaleX) + " nm per pixel" )
                         #combineImagesImageJ( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
-                        combineImagesPython( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
+                        combineImagesPython( directory + "/" + layerFolders[i].replace('\\', '/'), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
                     else:
                         if ( showDebuggingOutput ) : print( "...doing nothing!" )
             else:
                 print( ' found unstitched Tile Set' )
+                if ( showDebuggingOutput ) : print( ' Searched for pyramid.xml in: "' + pyramid_path )
                 if ( showDebuggingOutput ) : print( ' no algorithm implemented yet, aborting...')
             print()
             i=i+1
