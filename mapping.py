@@ -27,30 +27,30 @@ import statistics
 from tkinter import filedialog
 from subprocess import check_output
 
-# check for dependencies
-home_dir = os.path.dirname(os.path.realpath(__file__))
-# import image_recombination script
-ir_path = os.path.dirname( home_dir ) + '/image_recombination/'
-ir_file = 'image_recombination'
-if ( os.path.isfile( ir_path + ir_file + '.py' ) or os.path.isfile( home_dir + ir_file + '.py' ) ):
-    if ( os.path.isdir( ir_path ) ): sys.path.insert( 1, ir_path )
-    import image_recombination as ir
-else:
-    programInfo()
-    print( 'missing ' + ir_path + 'image_recombination.py!' )
-    print( 'download from https://github.com/kleinerELM/image_recobination' )
-    sys.exit()
-
 def programInfo():
     print("#########################################################")
     print("# Automatic stitching of Images from a Maps Project     #")
     print("#                                                       #")
-    print("# © 2019 Florian Kleiner                                #")
+    print("# © 2020 Florian Kleiner                                #")
     print("#   Bauhaus-Universität Weimar                          #")
     print("#   Finger-Institut für Baustoffkunde                   #")
     print("#                                                       #")
     print("#########################################################")
     print()
+
+# check for dependencies
+home_dir = os.path.dirname(os.path.realpath(__file__))
+# import image_recombination script
+ir_name = 'image_recombination'
+ir_path = os.path.dirname( home_dir ) + os.sep + ir_name + os.sep
+if ( os.path.isfile( ir_path + ir_name + '.py' ) or os.path.isfile( home_dir + ir_name + '.py' ) ):
+    if ( os.path.isdir( ir_path ) ): sys.path.insert( 1, ir_path )
+    import image_recombination as ir
+else:
+    programInfo()
+    print( 'missing ' + ir_path + ir_name +'.py!' )
+    print( 'download from https://github.com/kleinerELM/image_recobination' )
+    sys.exit()
 
 def processArguments():
     argv = sys.argv[1:]
@@ -186,7 +186,7 @@ def imageJInPATH():
     return True
 
 def readProjectData( directory ):    
-    projectDataXML = directory + "\MapsProject.xml"
+    projectDataXML = directory + os.sep + "MapsProject.xml"
     if ( not os.path.isfile( projectDataXML ) ):
         projectDataXML = filedialog.askopenfilename(title='Please select MapsProject.xml')
         projectDir = os.path.abspath(os.path.join(projectDataXML, os.pardir))
@@ -233,56 +233,61 @@ def readProjectData( directory ):
             title = str(layerNames[i])
             
             HDView_dir = '0' # directory in which the HDView files (pyramid.xml and tile images) are stored.
-            layer_dir = directory + '/'  + layerFolders[i] + '/' 
-            for subdir in os.listdir( layer_dir ):
-                if ( os.path.isdir( layer_dir + subdir ) ):
-                    HDView_dir = subdir
+            layer_dir = directory + os.sep + layerFolders[i] + os.sep
+            if os.path.isdir( layer_dir ):
+                for subdir in os.listdir( layer_dir ):
+                    if ( os.path.isdir( layer_dir + subdir ) ):
+                        HDView_dir = subdir
 
-            pyramid_path = layer_dir + HDView_dir + '/data/pyramid.xml'
-            if os.path.isfile( pyramid_path ):
-                print( ' found stitched layer!' )
-                layerTree = ET.ElementTree(file=pyramid_path)
-                layerRoot = layerTree.getroot()
-                isNavCam = True
-                for element in layerRoot:
-                    #print( '  -' + element.tag )
-                    if ( element.tag == 'imageset' ):
-                        #print( '  ' + element.attrib['url'] )
-                        layerNumber = element.attrib['levels']
-                        width = element.attrib['width']
-                        height = element.attrib['height']
-                        gridWidth = round( int( element.attrib['width'] ) / int( element.attrib['tileWidth'] ) )
-                        gridHeight = round( int( element.attrib['height'] ) / int( element.attrib['tileHeight'] ) )
-                        print( '  layer count: ' + layerNumber )
-                        print( '  image size: ' + width + ' x ' + height + ' px (Grid: '+ str( gridWidth ) + " x " + str( gridHeight ) + ")" )
-                    for subelement in element:
-                        if ( subelement.tag == 'pixelsize' ):
-                            isNavCam = False
-                            for subsubelement in subelement:
-                                if ( subsubelement.tag == 'x' ):
-                                    scaleX = float( subsubelement.text )*1000000000
-                                if ( subsubelement.tag == 'y' ):
-                                    scaleY = float( subsubelement.text )*1000000000
-                            print('  Scale : ' + str(scaleX) + " nm per pixel" )
-                            combineImagesPython( directory + "/" + layerFolders[i].replace('\\', '/'), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
-                            #if ( runImageJ_Script and imageJInPATH() ):
-                            #    combineImagesImageJ( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
-                            #else:
-                            #    if ( showDebuggingOutput ) : print( "...doing nothing!" )
-                if ( isNavCam ):
-                    if ( runImageJ_Script and imageJInPATH() ):
+                pyramid_path = layer_dir + HDView_dir + os.sep + "data" + os.sep + "pyramid.xml"
+                if os.path.isfile( pyramid_path ):
+                    print( ' found stitched layer!' )
+                    layerTree = ET.ElementTree(file=pyramid_path)
+                    layerRoot = layerTree.getroot()
+                    isNavCam = True
+                    for element in layerRoot:
+                        if ( element.tag == 'imageset' ):
+                            layerNumber = element.attrib['levels']
+                            width = element.attrib['width']
+                            height = element.attrib['height']
+                            gridWidth = round( int( element.attrib['width'] ) / int( element.attrib['tileWidth'] ) )
+                            gridHeight = round( int( element.attrib['height'] ) / int( element.attrib['tileHeight'] ) )
+                            print( '  layer count: ' + layerNumber )
+                            print( '  image size: ' + width + ' x ' + height + ' px (Grid: '+ str( gridWidth ) + " x " + str( gridHeight ) + ")" )
+                        for subelement in element:
+                            if ( subelement.tag == 'pixelsize' ):
+                                isNavCam = False
+                                for subsubelement in subelement:
+                                    if ( subsubelement.tag == 'x' ):
+                                        scaleX = float( subsubelement.text )*1000000000
+                                    if ( subsubelement.tag == 'y' ):
+                                        scaleY = float( subsubelement.text )*1000000000
+                                print('  Scale : ' + str(scaleX) + " nm per pixel" )
+                                combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
+                    if ( isNavCam ):
                         print( "  probably a NavCam Image!" )
                         #estimated scale: 2 cm for 468 px
                         scaleX = scaleY = 42735 # 20 000 000 nm / 468 px
                         print('  Estimated scale as: ' + str(scaleX) + " nm per pixel" )
-                        #combineImagesImageJ( directory + "/" + layerFolders[i].replace('\\', '/'), directory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
-                        combineImagesPython( directory + "/" + layerFolders[i].replace('\\', '/'), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
-                    else:
-                        if ( showDebuggingOutput ) : print( "...doing nothing!" )
+                        combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
+                else:
+                    print( ' found unstitched Tile Set' )
+                    if ( showDebuggingOutput ) : print( ' Searched for pyramid.xml in: "' + pyramid_path )
+                    if ( showDebuggingOutput ) : print( ' no algorithm implemented yet, aborting...')
+                    elements = [f for f in os.listdir(layer_dir) if os.path.isfile(os.path.join(layer_dir, f))]
+                    elements = sorted(elements)
+                    last_element = elements[-1]
+                    print(last_element)
+                    print("file count" + str(len(elements)))
+                    pos_string = last_element.split('_')
+                    grid_def = pos_string[1].split('-')
+                    
+                    gridWidth = int(grid_def[0])
+                    gridHeight = int(grid_def[1])
+                    
+                    combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
             else:
-                print( ' found unstitched Tile Set' )
-                if ( showDebuggingOutput ) : print( ' Searched for pyramid.xml in: "' + pyramid_path )
-                if ( showDebuggingOutput ) : print( ' no algorithm implemented yet, aborting...')
+                if ( showDebuggingOutput ) : print( ' folder "' + layer_dir + '" not found')
             print()
             i=i+1
     else:
@@ -317,7 +322,7 @@ if __name__ == '__main__':
     processArguments()
     if ( showDebuggingOutput ) : print( "I am living in '" + home_dir + "'" )
 
-    workingDirectory = filedialog.askdirectory(title='Please select the image / working directory')
+    workingDirectory = filedialog.askdirectory(title='Please select the image / working directory').replace('/', os.sep)
 
     if ( workingDirectory != "" ) :
         print( "Selected working directory: " + workingDirectory )
