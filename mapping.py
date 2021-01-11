@@ -15,13 +15,12 @@
 
 
 import csv
-import os, sys, getopt
+import os, sys, getopt, shutil
 import re
 import subprocess
 import math
 import tkinter as tk
 import mmap
-import shutil
 import xml.etree.ElementTree as ET
 import statistics
 from tkinter import filedialog
@@ -117,11 +116,11 @@ def processArguments():
 def getFileList( directory, HDView_dir, gridWidth, gridHeight, layerNumber ):
     allowed_file_extensions = [ '.tif', '.png' ]
     tile_count = 0
-    workingDirectory = directory + '/' + HDView_dir + '/data/'
+    workingDirectory = directory + os.sep + HDView_dir + os.sep + 'data' + os.sep + "l_" + str( int(layerNumber)-1 )
     fileNameList = []
     if os.path.isdir( workingDirectory ) :
         for i in range( gridWidth ):
-            path = workingDirectory + "l_" + str( int(layerNumber)-1 ) + "/c_" + str( i ) + "/"
+            path = workingDirectory  + os.sep + "c_" + str( i ) + os.sep
             for j in range( gridHeight ):
                 filePath = path + "tile_" + str( j ) +".tif"
                 if ( os.path.isfile( filePath ) ):
@@ -133,7 +132,7 @@ def getFileList( directory, HDView_dir, gridWidth, gridHeight, layerNumber ):
 
     return fileNameList
 
-def combineImagesPython( directory, outputDirectory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber ):
+def combineImagesPython( directory, outputDirectory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, result_file_name ):
     imageSize = int(width) * int(height) * forcedScaleFactor * forcedScaleFactor
     if ( imageSize < 2000000000 ):
         scaleFactor = forcedScaleFactor
@@ -148,22 +147,24 @@ def combineImagesPython( directory, outputDirectory, HDView_dir, title, width, h
         print( "    - scaling with factor " + str( scaleFactor ) + " to " + str( humanReadableImageSize ) + " GP)" )
         print( "    - changed scale from " + str( scaleX_old ) + " to " + str( scaleX ) + " nm per Pixel!" )
     
-    ir_settings = ir.getBaseSettings()
-    ir_settings["workingDirectory"] = directory #+ "/LayersData/Layer/"
-    ir_settings["outputDirectory"] = outputDirectory #+ "/LayersData/Layer/"
-    ir_settings["fileType"] = ".tif"
-    ir_settings["col_count"] = gridWidth
-    ir_settings["row_count"] = gridHeight
-    ir_settings["scaleX"] = scaleX
-    ir_settings["scaleY"] = scaleY
-    ir_settings["scaleUnit"] = 'nm'
-    ir_settings["scaleFactor"] = scaleFactor
-    ir_settings["tile_count"] = ( gridWidth * gridHeight )
-    ir_settings["imageDirection"] = 'v' # vertical direction
-    ir_settings["createThumbnail"] = True
-    ir_settings["showDebuggingOutput"] = True
     fileNameList = getFileList( directory, HDView_dir, gridWidth, gridHeight, layerNumber )
-    ir.stitchImages( ir_settings, fileNameList )
+
+    if fileNameList != []:
+        ir_settings = ir.getBaseSettings()
+        ir_settings["workingDirectory"] = workingDirectory #+ "/LayersData/Layer/"
+        ir_settings["outputDirectory"] = outputDirectory #+ "/LayersData/Layer/"
+        ir_settings["fileType"] = ".tif"
+        ir_settings["col_count"] = gridWidth
+        ir_settings["row_count"] = gridHeight
+        ir_settings["scaleX"] = scaleX
+        ir_settings["scaleY"] = scaleY
+        ir_settings["scaleUnit"] = 'nm'
+        ir_settings["scaleFactor"] = scaleFactor
+        ir_settings["tile_count"] = ( gridWidth * gridHeight )
+        ir_settings["imageDirection"] = 'v' # vertical direction
+        ir_settings["createThumbnail"] = True
+        ir_settings["showDebuggingOutput"] = True
+        ir.stitchImages( ir_settings, fileNameList, result_file_name = result_file_name )
 
 def cmdExists(cmd):
     return shutil.which(cmd) is not None
@@ -200,6 +201,7 @@ def readProjectData( directory ):
     projectDescription = ''
     layerNames = []
     layerFolders = []
+    layerFileName = []
     for element in root:
         if ( element.tag == '{' + XMLnamespace + '}displayName' ):
             projectName = element.text
@@ -222,14 +224,16 @@ def readProjectData( directory ):
                             for layer in element:
                                 if ( layer.tag == '{' + XMLnamespace + '}displayName' ):
                                     #print( ' - displayName : ' + str(layer.text) )
+                                    layerNames.append( layer.text.split('\\')[2] )
+                                    layerFileName.append( layer.text.split('\\')[1] + '-' + layer.text.split('\\')[2] )
                                     layerFolders.append( layer.text )
-                                if ( layer.tag == '{' + XMLnamespace + '}RealDisplayName' ):
-                                    #print( ' - RealDisplayName : ' + str(layer.text) )
-                                    layerNames.append( layer.text )
+                                #if ( layer.tag == '{' + XMLnamespace + '}RealDisplayName' ):
+                                #    print( ' - RealDisplayName : ' + str(layer.text) )
+                                #    layerNames.append( layer.text )
                                     
         i = 0
         while i < len(layerNames):
-            print( 'opening layer "' + str(layerNames[i]) + '"' )
+            print( 'opening layer "' + str(layerFileName[i]) + '"' )
             title = str(layerNames[i])
             
             HDView_dir = '0' # directory in which the HDView files (pyramid.xml and tile images) are stored.
@@ -263,13 +267,15 @@ def readProjectData( directory ):
                                     if ( subsubelement.tag == 'y' ):
                                         scaleY = float( subsubelement.text )*1000000000
                                 print('  Scale : ' + str(scaleX) + " nm per pixel" )
-                                combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
+                                break
+                                #combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
                     if ( isNavCam ):
                         print( "  probably a NavCam Image!" )
                         #estimated scale: 2 cm for 468 px
                         scaleX = scaleY = 42735 # 20 000 000 nm / 468 px
                         print('  Estimated scale as: ' + str(scaleX) + " nm per pixel" )
-                        combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
+                    
+                    combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, layerFileName[i] )
                 else:
                     print( ' found unstitched Tile Set' )
                     if ( showDebuggingOutput ) : print( ' Searched for pyramid.xml in: "' + pyramid_path )
@@ -277,15 +283,20 @@ def readProjectData( directory ):
                     elements = [f for f in os.listdir(layer_dir) if os.path.isfile(os.path.join(layer_dir, f))]
                     elements = sorted(elements)
                     last_element = elements[-1]
-                    print(last_element)
                     print("file count" + str(len(elements)))
-                    pos_string = last_element.split('_')
-                    grid_def = pos_string[1].split('-')
-                    
-                    gridWidth = int(grid_def[0])
-                    gridHeight = int(grid_def[1])
-                    
-                    combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
+                    if len(elements) > 1:
+                        pos_string = last_element.split('_')
+                        grid_def = pos_string[1].split('-')
+                        
+                        gridWidth = int(grid_def[0])
+                        gridHeight = int(grid_def[1])
+                        
+                        combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, layerFileName[i] )
+                    else:
+                        print( os.path.join(layer_dir, last_element) )
+                        target = directory + os.sep + elements[0]
+                        shutil.copy(os.path.join(layer_dir, last_element), target)
+
             else:
                 if ( showDebuggingOutput ) : print( ' folder "' + layer_dir + '" not found')
             print()
