@@ -126,6 +126,7 @@ def getFileList( directory, HDView_dir, gridWidth, gridHeight, layerNumber ):
                 if ( os.path.isfile( filePath ) ):
                     fileNameList.append( filePath )
                 else:
+                    fileNameList.append( 'EMPTY' )
                     print( "  ERROR: expected file is missing: '" + filePath + "'"  )
     else:
         print( "  Error: '" + workingDirectory + "' is no directory")
@@ -164,6 +165,9 @@ def combineImagesPython( directory, outputDirectory, HDView_dir, title, width, h
         ir_settings["imageDirection"] = 'v' # vertical direction
         ir_settings["createThumbnail"] = True
         ir_settings["showDebuggingOutput"] = True
+        ir_settings["cropX"] = int(int(width)*scaleFactor)
+        ir_settings["cropY"] = int(int(height)*scaleFactor)
+        
         ir.stitchImages( ir_settings, fileNameList, result_file_name = result_file_name )
 
 def cmdExists(cmd):
