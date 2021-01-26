@@ -52,10 +52,11 @@ else:
     sys.exit()
 
 def processArguments():
+    global imageSizeLimit
     argv = sys.argv[1:]
-    usage = sys.argv[0] + " [-h] [-i] [-c] [-d]"
+    usage = sys.argv[0] + " [-h] [-i] [-c] [-s] [-l:] [-d]"
     try:
-        opts, args = getopt.getopt(argv,"himfcd",["noImageJ="])
+        opts, args = getopt.getopt(argv,"himfcsl:d",["noImageJ="])
         for opt, arg in opts:
             if opt == '-h':
                 print( 'usage: ' + usage )
@@ -63,6 +64,8 @@ def processArguments():
                 print( '-i, --noImageJ       : skip ImageJ processing' )
                 print( '-c                   : disable curtaining removal' )
                 print( '-f                   : set a scale factor of the resulting images' )
+                print( '-s                   : manually stitch a single dataset from a "(stitched)" folder' )
+                print( '-l                   : Limit the image size to {} Gigapixel'.format(imageSizeLimit) )
                 print( '-d                   : show debug output' )
                 print( '' )
                 sys.exit()
@@ -74,6 +77,10 @@ def processArguments():
                 print( 'curtaining removal deactivatd!' )
                 global removeCurtaining
                 removeCurtaining = 0
+            elif opt in ("-s"):
+                print( 'manually stitch a single dataset from a "(stitched)" folder' )
+                global singleDataSet
+                singleDataSet = True
             elif opt in ("-d"):
                 print( 'show debugging output' )
                 global showDebuggingOutput
@@ -118,6 +125,7 @@ def getFileList( directory, HDView_dir, gridWidth, gridHeight, layerNumber ):
     tile_count = 0
     workingDirectory = directory + os.sep + HDView_dir + os.sep + 'data' + os.sep + "l_" + str( int(layerNumber)-1 )
     fileNameList = []
+    fileNameListEmpty = []
     if os.path.isdir( workingDirectory ) :
         for i in range( gridWidth ):
             path = workingDirectory  + os.sep + "c_" + str( i ) + os.sep
@@ -127,27 +135,41 @@ def getFileList( directory, HDView_dir, gridWidth, gridHeight, layerNumber ):
                     fileNameList.append( filePath )
                 else:
                     fileNameList.append( 'EMPTY' )
-                    print( "  ERROR: expected file is missing: '" + filePath + "'"  )
+                    fileNameListEmpty.append("tile_" + str( j ) +".tif")
     else:
         print( "  Error: '" + workingDirectory + "' is no directory")
+
+    if len(fileNameListEmpty) > 0:
+        print('   Warning: missing {} files:'.format(len(fileNameListEmpty)))
+        for i, filename in enumerate( fileNameListEmpty ):
+            if i < 3: print('   - {}'.format(filename))
+            else: 
+                print('   - ...')
+                break
 
     return fileNameList
 
 def combineImagesPython( directory, outputDirectory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, result_file_name ):
-    imageSize = int(width) * int(height) * forcedScaleFactor * forcedScaleFactor
-    if ( imageSize < 2000000000 ):
+    global forcedScaleFactor
+    imageSize = int(width) * int(height) * (forcedScaleFactor**2)
+    imageSizeLimitPx = imageSizeLimit*(10**9)
+    if imageSize > imageSizeLimitPx:
+        print()
+        forcedScaleFactor = round(math.sqrt(imageSizeLimitPx / imageSize), 3)
+        imageSize = int(width) * int(height) * (forcedScaleFactor**2) 
+        print( 'changed scalefactor to {}'.format( forcedScaleFactor ) ) 
+    if ( imageSize < imageSizeLimitPx ):
         scaleFactor = forcedScaleFactor
     else:
-        humanReadableImageSize = round( imageSize / 1000000000, 2)
+        humanReadableImageSize = round( imageSize / (10**9), 2)
         print( "  image is exceeding 2 Gigapixel (" + str( humanReadableImageSize ) + " GP) and therefore too large for ImageJ" )
         scaleFactor = 0.5*forcedScaleFactor
-        humanReadableImageSize = round( imageSize*scaleFactor*scaleFactor / 1000000000, 2)
+        humanReadableImageSize = round( imageSize*scaleFactor*scaleFactor / (10**9), 2)
         scaleX_old = scaleX
         scaleX = scaleX/scaleFactor
         scaleY = scaleY/scaleFactor
-        print( "    - scaling with factor " + str( scaleFactor ) + " to " + str( humanReadableImageSize ) + " GP)" )
+        print( "    - scaling with factor " + str( scaleFactor ) + " to " + str( humanReadableImageSize ) + " GP" )
         print( "    - changed scale from " + str( scaleX_old ) + " to " + str( scaleX ) + " nm per Pixel!" )
-    
     fileNameList = getFileList( directory, HDView_dir, gridWidth, gridHeight, layerNumber )
 
     if fileNameList != []:
@@ -234,7 +256,7 @@ def readProjectData( directory ):
                                 #if ( layer.tag == '{' + XMLnamespace + '}RealDisplayName' ):
                                 #    print( ' - RealDisplayName : ' + str(layer.text) )
                                 #    layerNames.append( layer.text )
-                                    
+
         i = 0
         while i < len(layerNames):
             print( 'opening layer "' + str(layerFileName[i]) + '"' )
@@ -244,8 +266,9 @@ def readProjectData( directory ):
             layer_dir = directory + os.sep + layerFolders[i] + os.sep
             if os.path.isdir( layer_dir ):
                 for subdir in os.listdir( layer_dir ):
-                    if ( os.path.isdir( layer_dir + subdir ) ):
-                        HDView_dir = subdir
+                    if subdir != 'histograms':
+                        if ( os.path.isdir( layer_dir + subdir ) ):
+                            HDView_dir = subdir
 
                 pyramid_path = layer_dir + HDView_dir + os.sep + "data" + os.sep + "pyramid.xml"
                 if os.path.isfile( pyramid_path ):
@@ -267,9 +290,9 @@ def readProjectData( directory ):
                                 isNavCam = False
                                 for subsubelement in subelement:
                                     if ( subsubelement.tag == 'x' ):
-                                        scaleX = float( subsubelement.text )*1000000000
+                                        scaleX = float( subsubelement.text )*10**9
                                     if ( subsubelement.tag == 'y' ):
-                                        scaleY = float( subsubelement.text )*1000000000
+                                        scaleY = float( subsubelement.text )*10**9
                                 print('  Scale : ' + str(scaleX) + " nm per pixel" )
                                 break
                                 #combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
@@ -304,9 +327,48 @@ def readProjectData( directory ):
             else:
                 if ( showDebuggingOutput ) : print( ' folder "' + layer_dir + '" not found')
             print()
-            i=i+1
+            i += 1
     else:
         print( 'kein Projekt gefunden!' )
+
+def readSingleDataSet(workingDirectory):
+    layer_dir = os.path.dirname(workingDirectory) + os.sep
+    HDView_dir = os.path.basename(workingDirectory)
+    title = str(os.path.basename(os.path.dirname(workingDirectory)))
+    
+    print(layer_dir, '|HDView_dir:', HDView_dir, '|title:', title)
+    pyramid_path = layer_dir + HDView_dir + os.sep + "data" + os.sep + "pyramid.xml"
+    if os.path.isfile( pyramid_path ):
+        print( ' found stitched layer!' )
+        layerTree = ET.ElementTree(file=pyramid_path)
+        layerRoot = layerTree.getroot()
+        has_px_size = False
+        for element in layerRoot:
+            if ( element.tag == 'imageset' ):
+                layerNumber = element.attrib['levels']
+                width = element.attrib['width']
+                height = element.attrib['height']
+                gridWidth = round( int( element.attrib['width'] ) / int( element.attrib['tileWidth'] ) )
+                gridHeight = round( int( element.attrib['height'] ) / int( element.attrib['tileHeight'] ) )
+                print( '  layer count: ' + layerNumber )
+                print( '  image size: ' + width + ' x ' + height + ' px (Grid: '+ str( gridWidth ) + " x " + str( gridHeight ) + ")" )
+            for subelement in element:
+                if ( subelement.tag == 'pixelsize' ):
+                    for subsubelement in subelement:
+                        if ( subsubelement.tag == 'x' ):
+                            scaleX = float( subsubelement.text )*10**9
+                            has_px_size = True
+                        if ( subsubelement.tag == 'y' ):
+                            scaleY = float( subsubelement.text )*10**9
+                    print('  Scale : ' + str(scaleX) + " nm per pixel" )
+                    break
+        if not has_px_size:
+            print( 'enter scale (nm per pixel): ' )
+            scaleX = float(input())
+            scaleY = scaleX
+        combineImagesPython( layer_dir, layer_dir, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, title )
+    else:
+        print( 'unable to find {}'.folder(pyramid_path) )
 
 ### actual program start
 if __name__ == '__main__':
@@ -314,34 +376,45 @@ if __name__ == '__main__':
     root = tk.Tk()
     root.withdraw()
 
-    voxelSizeX = 0
-    voxelSizeY = 0
-    resX = 0
-    resY = 0
+    voxelSizeX          = 0
+    voxelSizeY          = 0
+    resX                = 0
+    resY                = 0
 
-    runImageJ_Script = True #False
-    removeCurtaining = 1
-    createLogVideos = "n"
+    runImageJ_Script    = True #False
+    removeCurtaining    = 1
+    createLogVideos     = "n"
     showDebuggingOutput = False
-    outputType = 0 # standard output type (y-axis value) is area-%
-    thresholdLimit = 140
-    infoBarHeight = 0
-    metricScale = 0
-    pixelScale  = 0
-    startFrame = 0
-    endFrame = 0
-    forcedScaleFactor = 1
+    outputType          = 0 # standard output type (y-axis value) is area-%
+    thresholdLimit      = 140
+    infoBarHeight       = 0
+    metricScale         = 0
+    pixelScale          = 0
+    startFrame          = 0
+    endFrame            = 0
+    forcedScaleFactor   = 1
+    imageSizeLimit      = 1
+    singleDataSet       = False
 
     ### global settings    
     programInfo()
     processArguments()
     if ( showDebuggingOutput ) : print( "I am living in '" + home_dir + "'" )
 
-    workingDirectory = filedialog.askdirectory(title='Please select the image / working directory').replace('/', os.sep)
+    if singleDataSet:
+        wds_title = 'Please select the subfolder in the "(stiched)" dataset directory containing "HDView.htm"'
+    else:
+        wds_title = 'Please select the image / working directory'
+
+    print(wds_title)
+    workingDirectory = filedialog.askdirectory(title=wds_title).replace('/', os.sep)
 
     if ( workingDirectory != "" ) :
         print( "Selected working directory: " + workingDirectory )
-        readProjectData( workingDirectory )
+        if singleDataSet:
+            readSingleDataSet( workingDirectory )
+        else:
+            readProjectData( workingDirectory )
         
     else:
         print("No directory selected")
