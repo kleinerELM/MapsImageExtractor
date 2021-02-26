@@ -157,7 +157,7 @@ def combineImagesPython( directory, outputDirectory, HDView_dir, title, width, h
         print()
         forcedScaleFactor = round(math.sqrt(imageSizeLimitPx / imageSize), 3)
         imageSize = int(width) * int(height) * (forcedScaleFactor**2) 
-        print( 'changed scalefactor to {}'.format( forcedScaleFactor ) ) 
+        print( '  changed scale factor to {}'.format( forcedScaleFactor ) ) 
     if ( imageSize < imageSizeLimitPx ):
         scaleFactor = forcedScaleFactor
     else:
