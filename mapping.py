@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 #########################################################
-# Automated Alignment and data preparation for FIB/SEM 
+# Automated Alignment and data preparation for FIB/SEM
 # image stacks
 #
 # © 2020 Florian Kleiner
@@ -109,7 +109,7 @@ def processArguments():
         scaleY = scaleY/scaleFactor
         print( "    - scaling with factor " + str( scaleFactor ) + " to " + str( humanReadableImageSize ) + " GP)" )
         print( "    - changed scale from " + str( scaleX_old ) + " to " + str( scaleX ) + " nm per Pixel!" )
-    
+
     command = "ImageJ-win64.exe -macro \"" + home_dir +"\easyCombine.ijm\" \"" + directory + "/|" + outputDirectory + "/|" + str( scaleX ) + "|" + str( scaleY ) + "|" + str( width ) + "|" + str( height ) + "|" + str(gridWidth) + "|" + str(gridHeight) + "|" + title + "|" + str(layerNumber)+ "|" + str(scaleFactor) + "\""
 
     print( "  starting ImageJ Macro..." )
@@ -143,7 +143,7 @@ def getFileList( directory, HDView_dir, gridWidth, gridHeight, layerNumber ):
         print('   Warning: missing {} files:'.format(len(fileNameListEmpty)))
         for i, filename in enumerate( fileNameListEmpty ):
             if i < 3: print('   - {}'.format(filename))
-            else: 
+            else:
                 print('   - ...')
                 break
 
@@ -156,8 +156,8 @@ def combineImagesPython( directory, outputDirectory, HDView_dir, title, width, h
     if imageSize > imageSizeLimitPx:
         print()
         forcedScaleFactor = round(math.sqrt(imageSizeLimitPx / imageSize), 3)
-        imageSize = int(width) * int(height) * (forcedScaleFactor**2) 
-        print( '  changed scale factor to {}'.format( forcedScaleFactor ) ) 
+        imageSize = int(width) * int(height) * (forcedScaleFactor**2)
+        print( '  changed scale factor to {}'.format( forcedScaleFactor ) )
     if ( imageSize < imageSizeLimitPx ):
         scaleFactor = forcedScaleFactor
     else:
@@ -189,7 +189,7 @@ def combineImagesPython( directory, outputDirectory, HDView_dir, title, width, h
         ir_settings["showDebuggingOutput"] = True
         ir_settings["cropX"] = int(int(width)*scaleFactor)
         ir_settings["cropY"] = int(int(height)*scaleFactor)
-        
+
         ir.stitchImages( ir_settings, fileNameList, result_file_name = result_file_name )
 
 def cmdExists(cmd):
@@ -212,7 +212,7 @@ def imageJInPATH():
     elif ( showDebuggingOutput ) : print( "Fiji/ImageJ found!" )
     return True
 
-def readProjectData( directory ):    
+def readProjectData( directory ):
     projectDataXML = directory + os.sep + "MapsProject.xml"
     if ( not os.path.isfile( projectDataXML ) ):
         projectDataXML = filedialog.askopenfilename(title='Please select MapsProject.xml')
@@ -261,7 +261,7 @@ def readProjectData( directory ):
         while i < len(layerNames):
             print( 'opening layer "' + str(layerFileName[i]) + '"' )
             title = str(layerNames[i])
-            
+
             HDView_dir = '0' # directory in which the HDView files (pyramid.xml and tile images) are stored.
             layer_dir = directory + os.sep + layerFolders[i] + os.sep
             if os.path.isdir( layer_dir ):
@@ -298,10 +298,10 @@ def readProjectData( directory ):
                                 #combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
                     if ( isNavCam ):
                         print( "  probably a NavCam Image!" )
-                        #estimated scale: 2 cm for 468 px
-                        scaleX = scaleY = 42735 # 20 000 000 nm / 468 px
+                        #estimated scale: 25 mm for 470 px
+                        scaleX = scaleY = 53191 # 25 000 000 nm / 470 px
                         print('  Estimated scale as: ' + str(scaleX) + " nm per pixel" )
-                    
+
                     combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, layerFileName[i] )
                 else:
                     print( ' found unstitched Tile Set' )
@@ -314,10 +314,10 @@ def readProjectData( directory ):
                     if len(elements) > 1:
                         pos_string = last_element.split('_')
                         grid_def = pos_string[1].split('-')
-                        
+
                         gridWidth = int(grid_def[0])
                         gridHeight = int(grid_def[1])
-                        
+
                         combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, layerFileName[i] )
                     else:
                         print( os.path.join(layer_dir, last_element) )
@@ -335,7 +335,7 @@ def readSingleDataSet(workingDirectory):
     layer_dir = os.path.dirname(workingDirectory) + os.sep
     HDView_dir = os.path.basename(workingDirectory)
     title = str(os.path.basename(os.path.dirname(workingDirectory)))
-    
+
     print(layer_dir, '|HDView_dir:', HDView_dir, '|title:', title)
     pyramid_path = layer_dir + HDView_dir + os.sep + "data" + os.sep + "pyramid.xml"
     if os.path.isfile( pyramid_path ):
@@ -396,7 +396,7 @@ if __name__ == '__main__':
     imageSizeLimit      = 1
     singleDataSet       = False
 
-    ### global settings    
+    ### global settings
     programInfo()
     processArguments()
     if ( showDebuggingOutput ) : print( "I am living in '" + home_dir + "'" )
@@ -415,7 +415,7 @@ if __name__ == '__main__':
             readSingleDataSet( workingDirectory )
         else:
             readProjectData( workingDirectory )
-        
+
     else:
         print("No directory selected")
 
