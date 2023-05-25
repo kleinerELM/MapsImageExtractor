@@ -1,28 +1,12 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-#########################################################
-# Automated Alignment and data preparation for FIB/SEM
-# image stacks
-#
-# © 2020 Florian Kleiner
-#   Bauhaus-Universität Weimar
-#   Finger-Institut für Baustoffkunde
-#
-# programmed using python 3.7,
-# Fiji/ImageJ 1.52k
-#
-#########################################################
 
-
-import csv
 import os, sys, getopt, shutil
 import re
 import subprocess
 import math
 import tkinter as tk
-import mmap
 import xml.etree.ElementTree as ET
-import statistics
 from tkinter import filedialog
 from subprocess import check_output
 
@@ -30,7 +14,7 @@ def programInfo():
     print("#########################################################")
     print("# Automatic stitching of Images from a Maps Project     #")
     print("#                                                       #")
-    print("# © 2020 Florian Kleiner                                #")
+    print("# © 2023 Florian Kleiner                                #")
     print("#   Bauhaus-Universität Weimar                          #")
     print("#   Finger-Institut für Baustoffkunde                   #")
     print("#                                                       #")
@@ -95,47 +79,20 @@ def processArguments():
         print( usage )
     print( '' )
 
-""" def combineImagesImageJ( directory, outputDirectory, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber ):
-    imageSize = int(width) * int(height) * forcedScaleFactor * forcedScaleFactor
-    if ( imageSize < 2000000000 ):
-        scaleFactor = forcedScaleFactor
-    else:
-        humanReadableImageSize = round( imageSize / 1000000000, 2)
-        print( "  image is exceeding 2 Gigapixel (" + str( humanReadableImageSize ) + " GP) and therefore too large for ImageJ" )
-        scaleFactor = 0.5*forcedScaleFactor
-        humanReadableImageSize = round( imageSize*scaleFactor*scaleFactor / 1000000000, 2)
-        scaleX_old = scaleX
-        scaleX = scaleX/scaleFactor
-        scaleY = scaleY/scaleFactor
-        print( "    - scaling with factor " + str( scaleFactor ) + " to " + str( humanReadableImageSize ) + " GP)" )
-        print( "    - changed scale from " + str( scaleX_old ) + " to " + str( scaleX ) + " nm per Pixel!" )
-
-    command = "ImageJ-win64.exe -macro \"" + home_dir +"\easyCombine.ijm\" \"" + directory + "/|" + outputDirectory + "/|" + str( scaleX ) + "|" + str( scaleY ) + "|" + str( width ) + "|" + str( height ) + "|" + str(gridWidth) + "|" + str(gridHeight) + "|" + title + "|" + str(layerNumber)+ "|" + str(scaleFactor) + "\""
-
-    print( "  starting ImageJ Macro..." )
-    if ( showDebuggingOutput ) : print( '  ' + command )
-    try:
-        subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as e:
-        print( "  Error" )#"returned error (code {}): {}".format(e.returncode, e.output))
-        pass """
-
 def getFileList( directory, HDView_dir, gridWidth, gridHeight, layerNumber ):
-    allowed_file_extensions = [ '.tif', '.png' ]
-    tile_count = 0
-    workingDirectory = directory + os.sep + HDView_dir + os.sep + 'data' + os.sep + "l_" + str( int(layerNumber)-1 )
+    workingDirectory = directory + os.sep + HDView_dir + os.sep + 'data' + os.sep + "l_{}".format(int(layerNumber)-1)
     fileNameList = []
     fileNameListEmpty = []
     if os.path.isdir( workingDirectory ) :
         for i in range( gridWidth ):
-            path = workingDirectory  + os.sep + "c_" + str( i ) + os.sep
+            path = workingDirectory  + os.sep + "c_{}".format(i) + os.sep
             for j in range( gridHeight ):
-                filePath = path + "tile_" + str( j ) +".tif"
+                filePath = path + "tile_{}.tif".format(j)
                 if ( os.path.isfile( filePath ) ):
                     fileNameList.append( filePath )
                 else:
                     fileNameList.append( 'EMPTY' )
-                    fileNameListEmpty.append("tile_" + str( j ) +".tif")
+                    fileNameListEmpty.append("tile_{}.tif".format(j))
     else:
         print( "  Error: '" + workingDirectory + "' is no directory")
 
@@ -149,27 +106,24 @@ def getFileList( directory, HDView_dir, gridWidth, gridHeight, layerNumber ):
 
     return fileNameList
 
-def combineImagesPython( directory, outputDirectory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, result_file_name ):
+def combineImagesPython( directory, outputDirectory, HDView_dir,  width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, result_file_name ):
     global forcedScaleFactor
     imageSize = int(width) * int(height) * (forcedScaleFactor**2)
     imageSizeLimitPx = imageSizeLimit*(10**9)
     if imageSize > imageSizeLimitPx:
-        print()
         forcedScaleFactor = round(math.sqrt(imageSizeLimitPx / imageSize), 3)
         imageSize = int(width) * int(height) * (forcedScaleFactor**2)
-        print( '  changed scale factor to {}'.format( forcedScaleFactor ) )
+        print( "\n  changed scale factor to {}".format( forcedScaleFactor ) )
     if ( imageSize < imageSizeLimitPx ):
         scaleFactor = forcedScaleFactor
     else:
-        humanReadableImageSize = round( imageSize / (10**9), 2)
-        print( "  image is exceeding 2 Gigapixel (" + str( humanReadableImageSize ) + " GP) and therefore too large for ImageJ" )
+        print( "  image is exceeding {} Gigapixel ({:.2f} GP) and therefore is too large for ImageJ".format(imageSizeLimit, imageSize / (10**9)) )
         scaleFactor = 0.5*forcedScaleFactor
-        humanReadableImageSize = round( imageSize*scaleFactor*scaleFactor / (10**9), 2)
         scaleX_old = scaleX
         scaleX = scaleX/scaleFactor
         scaleY = scaleY/scaleFactor
-        print( "    - scaling with factor " + str( scaleFactor ) + " to " + str( humanReadableImageSize ) + " GP" )
-        print( "    - changed scale from " + str( scaleX_old ) + " to " + str( scaleX ) + " nm per Pixel!" )
+        print( "    - scaling with factor {:.2f} to {:.2f} GP".format(scaleFactor, imageSize*scaleFactor*scaleFactor / (10**9) ) )
+        print( "    - changed scale from {:.2f} to {:.2f} nm per Pixel!".format(scaleX_old, scaleX) )
     fileNameList = getFileList( directory, HDView_dir, gridWidth, gridHeight, layerNumber )
 
     if fileNameList != []:
@@ -186,7 +140,7 @@ def combineImagesPython( directory, outputDirectory, HDView_dir, title, width, h
         ir_settings["tile_count"] = ( gridWidth * gridHeight )
         ir_settings["imageDirection"] = 'v' # vertical direction
         ir_settings["createThumbnail"] = True
-        ir_settings["showDebuggingOutput"] = True
+        ir_settings["showDebuggingOutput"] = showDebuggingOutput
         ir_settings["cropX"] = int(int(width)*scaleFactor)
         ir_settings["cropY"] = int(int(height)*scaleFactor)
 
@@ -222,7 +176,6 @@ def readProjectData( directory ):
     root = tree.getroot()
     XMLnamespace = re.search('{(.*)}', root.tag).group(1)
 
-    description = root.find('{' + XMLnamespace + '}description ')
     projectName = ''
     projectDescription = ''
     layerNames = []
@@ -234,10 +187,10 @@ def readProjectData( directory ):
         if ( element.tag == '{' + XMLnamespace + '}description' ):
             projectDescription = element.text
     if ( projectName != '' ):
-        print( 'Projektname:         ' + projectName )
+        print( "Projektname:         {}".format(projectName) )
         if projectDescription is None: projectDescription = ''
-        print( 'Projektbeschreibung: ' + projectDescription )
-        print(  )
+        print( "Projektbeschreibung: {}\n".format(projectDescription) )
+
         #layers = root.find('{' + XMLnamespace + '}LayerGroups/{' + XMLnamespace + '}LayerGroup/{' + XMLnamespace + '}Layers')
         #layerGroup = root.find('{' + XMLnamespace + '}LayerGroups/{' + XMLnamespace + '}LayerGroup')
         layerGroups = root.find('{' + XMLnamespace + '}LayerGroups')
@@ -259,7 +212,7 @@ def readProjectData( directory ):
 
         i = 0
         while i < len(layerNames):
-            print( 'opening layer "' + str(layerFileName[i]) + '"' )
+            print( 'opening layer "{}"'.format(layerFileName[i]) )
             title = str(layerNames[i])
 
             HDView_dir = '0' # directory in which the HDView files (pyramid.xml and tile images) are stored.
@@ -279,12 +232,12 @@ def readProjectData( directory ):
                     for element in layerRoot:
                         if ( element.tag == 'imageset' ):
                             layerNumber = element.attrib['levels']
-                            width = element.attrib['width']
-                            height = element.attrib['height']
-                            gridWidth = round( int( element.attrib['width'] ) / int( element.attrib['tileWidth'] ) )
-                            gridHeight = round( int( element.attrib['height'] ) / int( element.attrib['tileHeight'] ) )
-                            print( '  layer count: ' + layerNumber )
-                            print( '  image size: ' + width + ' x ' + height + ' px (Grid: '+ str( gridWidth ) + " x " + str( gridHeight ) + ")" )
+                            width  = int( element.attrib['width'] )
+                            height = int( element.attrib['height'] )
+                            gridWidth  = round( width  / int( element.attrib['tileWidth'] ) )
+                            gridHeight = round( height / int( element.attrib['tileHeight'] ) )
+                            print( "  layer count: {}".format(layerNumber) )
+                            print( "  image size : {} x {} px (Grid: {} x {})".format(width, height, gridWidth, gridHeight) )
                         for subelement in element:
                             if ( subelement.tag == 'pixelsize' ):
                                 isNavCam = False
@@ -293,24 +246,24 @@ def readProjectData( directory ):
                                         scaleX = float( subsubelement.text )*10**9
                                     if ( subsubelement.tag == 'y' ):
                                         scaleY = float( subsubelement.text )*10**9
-                                print('  Scale : ' + str(scaleX) + " nm per pixel" )
+                                print('  Scale      : ' + str(scaleX) + " nm per pixel" )
                                 break
-                                #combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber )
+
                     if ( isNavCam ):
                         print( "  probably a NavCam Image!" )
                         #estimated scale: 25 mm for 470 px
                         scaleX = scaleY = 53191 # 25 000 000 nm / 470 px
-                        print('  Estimated scale as: ' + str(scaleX) + " nm per pixel" )
+                        print("  Estimated scale as: {} nm per pixel".format(scaleX) )
 
-                    combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, layerFileName[i] )
+                    combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, layerFileName[i] )
                 else:
                     print( ' found unstitched Tile Set' )
-                    if ( showDebuggingOutput ) : print( ' Searched for pyramid.xml in: "' + pyramid_path )
-                    if ( showDebuggingOutput ) : print( ' no algorithm implemented yet, aborting...')
+                    if showDebuggingOutput: print( ' Searched for pyramid.xml in: "{}"'.format(pyramid_path) )
+                    if showDebuggingOutput: print( ' no algorithm implemented yet, aborting...')
                     elements = [f for f in os.listdir(layer_dir) if os.path.isfile(os.path.join(layer_dir, f))]
                     elements = sorted(elements)
                     last_element = elements[-1]
-                    print("file count" + str(len(elements)))
+                    print("  found {} files".format(len(elements)))
                     if len(elements) > 1:
                         pos_string = last_element.split('_')
                         grid_def = pos_string[1].split('-')
@@ -318,7 +271,7 @@ def readProjectData( directory ):
                         gridWidth = int(grid_def[0])
                         gridHeight = int(grid_def[1])
 
-                        combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, layerFileName[i] )
+                        combineImagesPython( directory + os.sep + layerFolders[i].replace('\\', os.sep), directory, HDView_dir, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, layerFileName[i] )
                     else:
                         print( os.path.join(layer_dir, last_element) )
                         target = directory + os.sep + elements[0]
@@ -350,8 +303,8 @@ def readSingleDataSet(workingDirectory):
                 height = element.attrib['height']
                 gridWidth = round( int( element.attrib['width'] ) / int( element.attrib['tileWidth'] ) )
                 gridHeight = round( int( element.attrib['height'] ) / int( element.attrib['tileHeight'] ) )
-                print( '  layer count: ' + layerNumber )
-                print( '  image size: ' + width + ' x ' + height + ' px (Grid: '+ str( gridWidth ) + " x " + str( gridHeight ) + ")" )
+                print( "  layer count: {}".format(layerNumber) )
+                print( "  image size: {} x {} px (Grid: {} x {})".format(width, height, gridWidth, gridHeight) )
             for subelement in element:
                 if ( subelement.tag == 'pixelsize' ):
                     for subsubelement in subelement:
@@ -360,15 +313,15 @@ def readSingleDataSet(workingDirectory):
                             has_px_size = True
                         if ( subsubelement.tag == 'y' ):
                             scaleY = float( subsubelement.text )*10**9
-                    print('  Scale : ' + str(scaleX) + " nm per pixel" )
+                    print("  Scale : {} nm per pixel".format(scaleX) )
                     break
         if not has_px_size:
             print( 'enter scale (nm per pixel): ' )
             scaleX = float(input())
             scaleY = scaleX
-        combineImagesPython( layer_dir, layer_dir, HDView_dir, title, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, title )
+        combineImagesPython( layer_dir, layer_dir, HDView_dir, width, height, scaleX, scaleY, gridWidth, gridHeight, layerNumber, title )
     else:
-        print( 'unable to find {}'.folder(pyramid_path) )
+        print( 'unable to find {}'.format(pyramid_path) )
 
 ### actual program start
 if __name__ == '__main__':
@@ -393,7 +346,7 @@ if __name__ == '__main__':
     startFrame          = 0
     endFrame            = 0
     forcedScaleFactor   = 1
-    imageSizeLimit      = 1
+    imageSizeLimit      = 2
     singleDataSet       = False
 
     ### global settings

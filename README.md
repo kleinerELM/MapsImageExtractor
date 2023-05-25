@@ -7,7 +7,7 @@ A thumbnail with a x-resolution of 2000 pixel will be saved in a folder called t
 
 # dependencies
 
-This project depends on other Repositories. 
+This project depends on other repositories.
 
 https://github.com/kleinerELM/tiff_scaling
 https://github.com/kleinerELM/image_recobination
